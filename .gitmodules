@@ -1,0 +1,6 @@
+[submodule "zig-upaya"]
+	path = zig-upaya
+	url = https://github.com/prime31/zig-upaya
+[submodule "didot"]
+	path = didot
+	url = https://github.com/zenith391/didot

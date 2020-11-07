@@ -19,9 +19,12 @@ var gp: std.heap.GeneralPurposeAllocator(.{}) = .{};
 var allocator = &gp.allocator;
 
 var fbo: GLuint = undefined;
+var rbo: GLuint = undefined;
 var renderTexture: GLuint = undefined;
 
 var render_texture: upaya.sokol.sg_image = undefined;
+
+extern fn _ogImage(user_texture_id: ImTextureID, size: ImVec2, uv0: ImVec2, uv1: ImVec2) void;
 
 fn toggleSceneGraph() void {
     sceneGraphShow = !sceneGraphShow;
@@ -57,12 +60,11 @@ fn init() void {
     glBindTexture(GL_TEXTURE_2D, 0);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTexture, 0);
 
-    var rbo: GLuint = undefined;
     glGenRenderbuffers(1, &rbo);
     glBindRenderbuffer(GL_RENDERBUFFER, rbo);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 800, 600);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         std.debug.warn("framebuffer error\n", .{});
@@ -103,6 +105,28 @@ fn updateUpaya() void {
 }
 
 fn update() !void {
+    if (scene) |scn| {
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glDisable(GL_STENCIL_TEST);
+        glDepthFunc(GL_LESS);
+        glDepthMask(GL_TRUE);
+        glClearColor(0, 0, 0, 1);
+        var program: GLint = undefined;
+        glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+        glClearDepth(1);
+        try scn.renderOffscreen(zlm.vec4(0, 0, 800, 600));
+        const err = glGetError();
+        if (err != 0) {
+            std.debug.warn("gl error: {}\n", .{err});
+        }
+        glUseProgram(@bitCast(c_uint, program));
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_FRAMEBUFFER_SRGB);
+
+        glBindVertexArray(3);
+    }
+
     upaya.menu.draw(&[_]upaya.MenuItem{
         .{
             .label = "File",
@@ -178,27 +202,17 @@ fn update() !void {
         igEnd();
     }
 
-    //igPushStyleVarVec2(ImGuiStyleVar_WindowPadding, .{});
-    if (igBegin("Game", null, ImGuiWindowFlags_None)) {
+    igPushStyleVarVec2(ImGuiStyleVar_WindowPadding, .{});
+    if (igBegin("Game", null, ImGuiWindowFlags_AlwaysAutoResize)) {
         if (scene) |scn| {
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-            var program: GLint = undefined;
-            glGetIntegerv(GL_CURRENT_PROGRAM, &program);
-            try scn.renderOffscreen(zlm.vec4(0, 0, 800, 600));
-            glUseProgram(@bitCast(c_uint, program));
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            const err = glGetError();
-            if (err != 0) {
-                std.debug.warn("gl error: {}\n", .{err});
-            }
-
-            ogImage(@intToPtr(*c_void, render_texture.id), 800, 600);
+            const size = ImVec2{ .x = 800.0, .y = 600.0 };
+            _ogImage(@intToPtr(*c_void, render_texture.id), size, .{.y = 1}, .{ .x=1 });
         } else {
             igText("Please open a scene.");
         }
     }
     igEnd();
-    //igPopStyleVar(1);
+    igPopStyleVar(1);
 
     if (igBegin("Assets", null, ImGuiWindowFlags_None)) {
         igText("Assets: TODO");

@@ -51,6 +51,9 @@ pub fn loadFrom(allocator: *Allocator, text: []const u8) !*objects.Scene {
             var shader = try @import("didot-graphics").ShaderProgram.create(@embedFile("../assets/shaders/vert.glsl"), @embedFile("../assets/shaders/frag.glsl"));
             var camera = try objects.Camera.create(allocator, shader);
             go = camera.gameObject;
+        } else if (std.mem.eql(u8, objectType, "point_light")) {
+            var pointLight = try objects.PointLight.create(allocator);
+            go = pointLight.gameObject;
         } else {
             go = objects.GameObject.createEmpty(allocator);
         }
